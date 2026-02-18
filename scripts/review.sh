@@ -243,9 +243,8 @@ rm -f "$OUTPUT_FILE"
 opencode run \
 	--model "$MODEL" \
 	"$(cat "$PROMPT_FILE")" \
-	>/tmp/opencode-stdout.txt 2>&1 || {
+	2>&1 | tee /tmp/opencode-stdout.txt || {
 	echo "::error::OpenCode exited with a non-zero status"
-	cat /tmp/opencode-stdout.txt >&2
 	exit 1
 }
 
