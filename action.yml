@@ -24,10 +24,6 @@ inputs:
     description: "Maximum diff size in bytes before truncation (default: 100000)"
     required: false
     default: "100000"
-  post_summary:
-    description: "Whether to post an overall summary comment on the PR (default: true)"
-    required: false
-    default: "true"
   extra_env:
     description: "Extra environment variables to pass to OpenCode as KEY=VALUE lines"
     required: false
@@ -54,7 +50,6 @@ runs:
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_REVIEW_PROMPT: ${{ inputs.review_prompt }}
         INPUT_MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}
-        INPUT_POST_SUMMARY: ${{ inputs.post_summary }}
         INPUT_EXTRA_ENV: ${{ inputs.extra_env }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

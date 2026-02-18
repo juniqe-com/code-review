@@ -11,7 +11,6 @@ set -euo pipefail
 #    duplicate any already-raised comment (resolved OR unresolved)
 # 4. Runs OpenCode inside the repo so it can explore the full codebase
 # 5. Reads the structured JSON output and posts inline PR comments
-# 6. Optionally posts an overall summary comment
 ##############################################################################
 
 OUTPUT_FILE="/tmp/opencode-review.json"
@@ -24,7 +23,6 @@ REPO_NAME="${REPO##*/}"
 
 MODEL="${INPUT_MODEL}"
 MAX_DIFF_SIZE="${INPUT_MAX_DIFF_SIZE:-100000}"
-POST_SUMMARY="${INPUT_POST_SUMMARY:-true}"
 CUSTOM_PROMPT="${INPUT_REVIEW_PROMPT:-}"
 
 # ── Step 1: Fetch PR context via GraphQL ─────────────────────────────────────
@@ -258,16 +256,11 @@ if [ ! -f "$OUTPUT_FILE" ]; then
 	echo "::warning::OpenCode did not produce ${OUTPUT_FILE}."
 	echo "OpenCode stdout was:"
 	cat /tmp/opencode-stdout.txt
-	gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-		-f body="**OpenCode Review**: The review completed but no structured output was produced. Check the Actions log for details." \
-		>/dev/null
 	exit 0
 fi
 
 FINDINGS_COUNT=$(jq '.findings | length' "$OUTPUT_FILE")
 echo "Findings: ${FINDINGS_COUNT}"
-
-FAILED_INLINE=""
 
 for i in $(seq 0 $((FINDINGS_COUNT - 1))); do
 	FINDING=$(jq -c ".findings[$i]" "$OUTPUT_FILE")
@@ -320,55 +313,9 @@ ${F_BODY}"
 		echo "  ✓ ${F_PATH}:${F_LINE} — ${F_TITLE}"
 	else
 		echo "  ✗ ${F_PATH}:${F_LINE} — could not post inline (HTTP ${HTTP_CODE})"
-		FAILED_INLINE+="| \`${F_PATH}:${F_LINE}\` | ${SEV_ICON} ${F_SEV} | ${F_TITLE} |
-"
 	fi
 done
 
 echo "::endgroup::"
-
-# ── Step 7: Post summary comment ────────────────────────────────────────────
-
-if [ "$POST_SUMMARY" = "true" ]; then
-	echo "::group::Posting summary"
-
-	SUMMARY=$(jq -r '.summary // "No summary."' "$OUTPUT_FILE")
-	VERDICT=$(jq -r '.verdict // "comment"' "$OUTPUT_FILE")
-
-	# Verdict badge
-	case "$VERDICT" in
-	approve) VERDICT_BADGE="✅ **Approve**" ;;
-	request_changes) VERDICT_BADGE="❌ **Changes requested**" ;;
-	*) VERDICT_BADGE="💬 **Comment**" ;;
-	esac
-
-	BODY="## OpenCode Review
-
-${VERDICT_BADGE}
-
-${SUMMARY}
-"
-
-	if [ -n "$FAILED_INLINE" ]; then
-		BODY+="
-### Findings outside the diff
-
-These could not be posted as inline comments because the lines are not part of the diff.
-
-| Location | Severity | Issue |
-|----------|----------|-------|
-${FAILED_INLINE}
-"
-	fi
-
-	BODY+="
----
-<sub>Reviewed by <a href=\"https://opencode.ai\">OpenCode</a> · model \`${MODEL}\`</sub>"
-
-	gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-		-f body="$BODY" >/dev/null
-
-	echo "::endgroup::"
-fi
 
 echo "Review complete."
