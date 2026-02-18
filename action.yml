@@ -61,7 +61,7 @@ runs:
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
         # allow all tools without interactive prompts
-        OPENCODE_PERMISSION: '"allow"'
+        OPENCODE_PERMISSION: '{"*":"allow"}'
       run: |
         # Export any extra env vars the user passed
         if [ -n "$INPUT_EXTRA_ENV" ]; then
