@@ -262,6 +262,14 @@ fi
 FINDINGS_COUNT=$(jq '.findings | length' "$OUTPUT_FILE")
 echo "Findings: ${FINDINGS_COUNT}"
 
+if [ "$FINDINGS_COUNT" -eq 0 ]; then
+	echo "No issues found — posting clean comment."
+	COMMIT_SHAS=$(git log --format='%h' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -sd ', ' -)
+	gh api \
+		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
+		-f body="Did not find any issues in commits ${COMMIT_SHAS}"
+fi
+
 for i in $(seq 0 $((FINDINGS_COUNT - 1))); do
 	FINDING=$(jq -c ".findings[$i]" "$OUTPUT_FILE")
 
