@@ -238,9 +238,8 @@ echo "::group::Running OpenCode"
 # Clean any leftover output from a previous run
 rm -f "$OUTPUT_FILE"
 
-opencode run \
+cat "$PROMPT_FILE" | opencode run \
 	--model "$MODEL" \
-	"$(cat "$PROMPT_FILE")" \
 	2>&1 | tee /tmp/opencode-stdout.txt || {
 	echo "::error::OpenCode exited with a non-zero status"
 	exit 1
@@ -264,7 +263,7 @@ echo "Findings: ${FINDINGS_COUNT}"
 
 if [ "$FINDINGS_COUNT" -eq 0 ]; then
 	echo "No issues found — posting clean comment."
-	COMMIT_SHAS=$(git log --format='%h' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -sd ', ' -)
+	COMMIT_SHAS=$(git log --format='`%h`' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -sd ',' - | sed 's/,/, /g')
 	gh api \
 		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
 		-f body="Did not find any issues in commits ${COMMIT_SHAS}"
