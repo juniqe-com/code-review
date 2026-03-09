@@ -67,6 +67,7 @@ The action runs automatically on every non-draft pull request.
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |
 | `max_diff_size` | no | `100000` | Max diff bytes before truncation |
 | `post_summary` | no | `true` | Post an overall summary comment |
+| `skip_authors` | no | `"renovate[bot],dependabot[bot]"` | Comma-separated PR authors to skip review for (e.g. bot accounts). Set to `""` to disable. |
 | `extra_env` | no | `""` | Extra env vars as `KEY=VALUE` lines |
 
 ## How it works
