@@ -29,7 +29,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
           model: anthropic/claude-sonnet-4-20250514
-          # skip_authors: "renovate[bot],dependabot[bot]"  # ← default; set to "" to disable
           # review_prompt: |
           #   Also check for compliance with our internal API design guidelines
           #   documented in docs/api-guidelines.md.

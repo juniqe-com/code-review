@@ -28,36 +28,11 @@ inputs:
     description: "Extra environment variables to pass to OpenCode as KEY=VALUE lines"
     required: false
     default: ""
-  skip_authors:
-    description: "Comma-separated list of PR authors to skip review for (e.g. bot accounts). Set to empty string to disable."
-    required: false
-    default: "renovate[bot],dependabot[bot]"
 
 runs:
   using: "composite"
   steps:
-    - name: Check skip authors
-      id: skip-check
-      shell: bash
-      env:
-        PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        SKIP_AUTHORS: ${{ inputs.skip_authors }}
-      run: |
-        if [ -n "$SKIP_AUTHORS" ]; then
-          IFS=',' read -ra AUTHORS <<< "$SKIP_AUTHORS"
-          for author in "${AUTHORS[@]}"; do
-            author=$(echo "$author" | xargs)  # trim whitespace
-            if [ "$PR_AUTHOR" = "$author" ]; then
-              echo "Skipping review: PR author '$PR_AUTHOR' is in skip list"
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-        fi
-        echo "skip=false" >> "$GITHUB_OUTPUT"
-
     - name: Install OpenCode
-      if: steps.skip-check.outputs.skip != 'true'
       shell: bash
       run: |
         if command -v opencode &>/dev/null; then
@@ -69,7 +44,6 @@ runs:
         fi
 
     - name: Run review
-      if: steps.skip-check.outputs.skip != 'true'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
