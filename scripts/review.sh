@@ -269,6 +269,8 @@ if [ "$FINDINGS_COUNT" -eq 0 ]; then
 		-f body="Did not find any issues in commits ${COMMIT_SHAS}"
 fi
 
+FAILED_COMMENTS=""
+
 for i in $(seq 0 $((FINDINGS_COUNT - 1))); do
 	FINDING=$(jq -c ".findings[$i]" "$OUTPUT_FILE")
 
@@ -320,8 +322,26 @@ ${F_BODY}"
 		echo "  ✓ ${F_PATH}:${F_LINE} — ${F_TITLE}"
 	else
 		echo "  ✗ ${F_PATH}:${F_LINE} — could not post inline (HTTP ${HTTP_CODE})"
+		FAILED_COMMENTS="${FAILED_COMMENTS}
+### ${SEV_ICON} \`${F_PATH}:${F_LINE}\` — ${F_TITLE}
+
+${F_BODY}
+"
 	fi
 done
+
+# Post failed inline comments as a general PR comment
+if [ -n "$FAILED_COMMENTS" ]; then
+	echo "Posting fallback comment for findings that could not be placed inline…"
+	SUMMARY_BODY="## Code review findings (outside diff context)
+
+The following findings could not be posted as inline comments because the referenced lines are outside the diff:
+${FAILED_COMMENTS}"
+
+	gh api \
+		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
+		-f body="$SUMMARY_BODY"
+fi
 
 echo "::endgroup::"
 
