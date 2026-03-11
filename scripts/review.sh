@@ -22,6 +22,7 @@ OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
 
 MODEL="${INPUT_MODEL}"
+VARIANT="${INPUT_VARIANT:-}"
 MAX_DIFF_SIZE="${INPUT_MAX_DIFF_SIZE:-100000}"
 CUSTOM_PROMPT="${INPUT_REVIEW_PROMPT:-}"
 
@@ -238,8 +239,13 @@ echo "::group::Running OpenCode"
 # Clean any leftover output from a previous run
 rm -f "$OUTPUT_FILE"
 
-cat "$PROMPT_FILE" | opencode run \
-	--model "$MODEL" \
+OPENCODE_ARGS=(run --model "$MODEL")
+
+if [ -n "$VARIANT" ]; then
+	OPENCODE_ARGS+=(--variant "$VARIANT")
+fi
+
+cat "$PROMPT_FILE" | opencode "${OPENCODE_ARGS[@]}" \
 	2>&1 | tee /tmp/opencode-stdout.txt || {
 	echo "::error::OpenCode exited with a non-zero status"
 	exit 1

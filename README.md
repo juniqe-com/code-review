@@ -9,7 +9,7 @@ AI-powered code review GitHub Action using [OpenCode](https://opencode.ai). Post
 - **No duplicate comments** — The action fetches all existing PR comments and review threads (both resolved and unresolved) and passes them to OpenCode so it never re-raises an issue that was already discussed.
 - **Summary comment** — An optional overall summary with a verdict (approve / request changes / comment) is posted on the PR.
 - **Findings outside the diff** — If OpenCode finds an issue on a line that isn't part of the diff, it's included in the summary table instead of being silently dropped.
-- **Configurable model** — Use any provider/model supported by OpenCode.
+- **Configurable model + variant** — Use any provider/model supported by OpenCode and optionally choose a provider-specific variant.
 
 ## Quick start
 
@@ -44,24 +44,59 @@ jobs:
 
       - uses: your-org/code-review@main
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
-          model: anthropic/claude-sonnet-4-20250514
+          model: openai/gpt-5.4
+          variant: xhigh
 ```
 
 ### 2. Add your API key
 
-Go to **Settings → Secrets and variables → Actions** in your repository and add the API key for the provider you chose (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`).
+Go to **Settings → Secrets and variables → Actions** in your repository and add the API key for the provider you chose (e.g. `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
 
 ### 3. Open a PR
 
 The action runs automatically on every non-draft pull request.
+
+## Model examples
+
+You can optionally set `variant` to choose a provider-specific reasoning profile.
+
+### GPT-5.4 with `xhigh`
+
+```yaml
+- uses: your-org/code-review@main
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  with:
+    model: openai/gpt-5.4
+    variant: xhigh
+```
+
+### Claude Sonnet with `max`
+
+```yaml
+- uses: your-org/code-review@main
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  with:
+    model: anthropic/claude-sonnet-4-20250514
+    variant: max
+```
+
+Common built-in variants include:
+
+- OpenAI: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`
+- Anthropic: `high`, `max`
+
+Use only variants supported by the selected provider/model.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `model` | yes | — | Model in `provider/model` format |
+| `variant` | no | `""` | Optional provider-specific variant, such as `xhigh` for GPT or `max` for Claude |
 | `github_token` | no | `${{ github.token }}` | Token for posting comments |
 | `opencode_version` | no | `latest` | OpenCode version to install |
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |

@@ -8,6 +8,10 @@ inputs:
   model:
     description: "Model to use in provider/model format (e.g. anthropic/claude-sonnet-4-20250514)"
     required: true
+  variant:
+    description: "Optional provider-specific model variant (e.g. xhigh for GPT-5.4, max for Claude)"
+    required: false
+    default: ""
   github_token:
     description: "GitHub token for posting review comments. Defaults to the built-in GITHUB_TOKEN."
     required: false
@@ -48,6 +52,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         INPUT_MODEL: ${{ inputs.model }}
+        INPUT_VARIANT: ${{ inputs.variant }}
         INPUT_REVIEW_PROMPT: ${{ inputs.review_prompt }}
         INPUT_MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}
         INPUT_EXTRA_ENV: ${{ inputs.extra_env }}
