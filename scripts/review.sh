@@ -2,19 +2,19 @@
 set -euo pipefail
 
 ##############################################################################
-# OpenCode Code Review
+# Pi Code Review
 #
 # 1. Fetches PR metadata, comments, and review threads (with resolved status)
 #    via a single GraphQL call
 # 2. Generates the diff (truncated if necessary)
-# 3. Builds a prompt that includes all context and tells OpenCode NOT to
+# 3. Builds a prompt that includes all context and tells Pi NOT to
 #    duplicate any already-raised comment (resolved OR unresolved)
-# 4. Runs OpenCode inside the repo so it can explore the full codebase
+# 4. Runs Pi inside the repo so it can explore the full codebase
 # 5. Reads the structured JSON output and posts inline PR comments
 ##############################################################################
 
-OUTPUT_FILE="/tmp/opencode-review.json"
-PROMPT_FILE="/tmp/opencode-prompt.md"
+OUTPUT_FILE="/tmp/pi-review.json"
+PROMPT_FILE="/tmp/pi-prompt.md"
 PR_DATA="/tmp/pr-data.json"
 
 REPO="${GITHUB_REPOSITORY}"
@@ -154,7 +154,7 @@ You are a senior code reviewer. Your job is to review the pull request below.
    you are unsure, read the file first.
 
 5. **Structured output** — After your analysis, write a JSON file to
-   `/tmp/opencode-review.json` with this exact schema:
+   `/tmp/pi-review.json` with this exact schema:
 
 ```json
 {
@@ -232,22 +232,22 @@ PROMPT_SIZE=$(wc -c <"$PROMPT_FILE" | tr -d ' ')
 echo "Prompt built: ${PROMPT_SIZE} bytes"
 echo "::endgroup::"
 
-# ── Step 5: Run OpenCode ────────────────────────────────────────────────────
+# ── Step 5: Run Pi ───────────────────────────────────────────────────────────
 
-echo "::group::Running OpenCode"
+echo "::group::Running Pi"
 
 # Clean any leftover output from a previous run
 rm -f "$OUTPUT_FILE"
 
-OPENCODE_ARGS=(run --model "$MODEL")
+PI_ARGS=(-p --model "$MODEL")
 
 if [ -n "$VARIANT" ]; then
-	OPENCODE_ARGS+=(--variant "$VARIANT")
+	PI_ARGS+=(--thinking "$VARIANT")
 fi
 
-cat "$PROMPT_FILE" | opencode "${OPENCODE_ARGS[@]}" \
-	2>&1 | tee /tmp/opencode-stdout.txt || {
-	echo "::error::OpenCode exited with a non-zero status"
+cat "$PROMPT_FILE" | pi "${PI_ARGS[@]}" \
+	2>&1 | tee /tmp/pi-stdout.txt || {
+	echo "::error::Pi exited with a non-zero status"
 	exit 1
 }
 
@@ -258,9 +258,9 @@ echo "::endgroup::"
 echo "::group::Posting review comments"
 
 if [ ! -f "$OUTPUT_FILE" ]; then
-	echo "::warning::OpenCode did not produce ${OUTPUT_FILE}."
-	echo "OpenCode stdout was:"
-	cat /tmp/opencode-stdout.txt
+	echo "::warning::Pi did not produce ${OUTPUT_FILE}."
+	echo "Pi stdout was:"
+	cat /tmp/pi-stdout.txt
 	exit 0
 fi
 

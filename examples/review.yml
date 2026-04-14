@@ -1,11 +1,11 @@
-name: OpenCode Review
+name: Pi Review
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
-  group: opencode-review-${{ github.event.pull_request.number }}
+  group: pi-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -20,16 +20,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # full history — OpenCode needs the whole codebase
+          fetch-depth: 0          # full history — Pi needs the whole codebase
           persist-credentials: false
 
-      - name: Run OpenCode review
+      - name: Run Pi review
         uses: your-org/code-review@main   # ← replace with your action ref
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
           model: anthropic/claude-sonnet-4-20250514
-          # variant: max
+          # thinking: high
           # review_prompt: |
           #   Also check for compliance with our internal API design guidelines
           #   documented in docs/api-guidelines.md.

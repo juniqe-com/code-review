@@ -1,31 +1,31 @@
-# OpenCode Code Review
+# Pi Code Review
 
-AI-powered code review GitHub Action using [OpenCode](https://opencode.ai). Posts inline comments on pull request files, similar to CodeRabbit.
+AI-powered code review GitHub Action using [Pi](https://github.com/badlogic/pi-mono). Posts inline comments on pull request files, similar to CodeRabbit.
 
 ## Features
 
-- **Full codebase access** — OpenCode runs inside your repo checkout and can read any file, not just the diff. It follows imports, checks tests, and understands context.
+- **Full codebase access** — Pi runs inside your repo checkout and can read any file, not just the diff. It follows imports, checks tests, and understands context.
 - **Inline PR comments** — Findings are posted as individual comments on the exact lines in the pull request diff.
-- **No duplicate comments** — The action fetches all existing PR comments and review threads (both resolved and unresolved) and passes them to OpenCode so it never re-raises an issue that was already discussed.
+- **No duplicate comments** — The action fetches all existing PR comments and review threads (both resolved and unresolved) and passes them to Pi so it never re-raises an issue that was already discussed.
 - **Summary comment** — An optional overall summary with a verdict (approve / request changes / comment) is posted on the PR.
-- **Findings outside the diff** — If OpenCode finds an issue on a line that isn't part of the diff, it's included in the summary table instead of being silently dropped.
-- **Configurable model + variant** — Use any provider/model supported by OpenCode and optionally choose a provider-specific variant.
+- **Findings outside the diff** — If Pi finds an issue on a line that isn't part of the diff, it's included in the summary table instead of being silently dropped.
+- **Configurable model + thinking** — Use any provider/model supported by Pi and optionally choose a thinking level.
 
 ## Quick start
 
 ### 1. Add the workflow
 
-Create `.github/workflows/opencode-review.yml`:
+Create `.github/workflows/pi-review.yml`:
 
 ```yaml
-name: OpenCode Review
+name: Pi Review
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
-  group: opencode-review-${{ github.event.pull_request.number }}
+  group: pi-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -47,7 +47,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           model: openai/gpt-5.4
-          variant: xhigh
+          thinking: xhigh
 ```
 
 ### 2. Add your API key
@@ -60,7 +60,7 @@ The action runs automatically on every non-draft pull request.
 
 ## Model examples
 
-You can optionally set `variant` to choose a provider-specific reasoning profile.
+You can optionally set `thinking` to control the reasoning level.
 
 ### GPT-5.4 with `xhigh`
 
@@ -70,10 +70,10 @@ You can optionally set `variant` to choose a provider-specific reasoning profile
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   with:
     model: openai/gpt-5.4
-    variant: xhigh
+    thinking: xhigh
 ```
 
-### Claude Sonnet with `max`
+### Claude Sonnet with `high`
 
 ```yaml
 - uses: your-org/code-review@main
@@ -81,24 +81,19 @@ You can optionally set `variant` to choose a provider-specific reasoning profile
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   with:
     model: anthropic/claude-sonnet-4-20250514
-    variant: max
+    thinking: high
 ```
 
-Common built-in variants include:
-
-- OpenAI: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`
-- Anthropic: `high`, `max`
-
-Use only variants supported by the selected provider/model.
+Available thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `model` | yes | — | Model in `provider/model` format |
-| `variant` | no | `""` | Optional provider-specific variant, such as `xhigh` for GPT or `max` for Claude |
+| `thinking` | no | `""` | Optional thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 | `github_token` | no | `${{ github.token }}` | Token for posting comments |
-| `opencode_version` | no | `latest` | OpenCode version to install |
+| `pi_version` | no | `latest` | Pi version to install |
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |
 | `max_diff_size` | no | `100000` | Max diff bytes before truncation |
 | `post_summary` | no | `true` | Post an overall summary comment |
@@ -111,16 +106,16 @@ Use only variants supported by the selected provider/model.
 │  GitHub Actions runner                                  │
 │                                                         │
 │  1. Checkout full repo (fetch-depth: 0)                 │
-│  2. Install OpenCode                                    │
+│  2. Install Pi                                          │
 │  3. Fetch PR metadata via GraphQL:                      │
 │     - title, description, author                        │
 │     - conversation comments                             │
 │     - review threads (resolved + unresolved)            │
 │  4. Generate git diff (base...head)                     │
 │  5. Build prompt with all context + diff                │
-│  6. Run `opencode run` inside the repo                  │
-│     → OpenCode can read ANY file in the codebase        │
-│     → writes findings to /tmp/opencode-review.json      │
+│  6. Run `pi -p` inside the repo                         │
+│     → Pi can read ANY file in the codebase              │
+│     → writes findings to /tmp/pi-review.json            │
 │  7. Post each finding as an inline PR comment           │
 │  8. Post overall summary comment                        │
 └─────────────────────────────────────────────────────────┘
@@ -145,7 +140,7 @@ Use the `review_prompt` input to add project-specific criteria:
 
 ## Output schema
 
-OpenCode writes `/tmp/opencode-review.json` with this structure:
+Pi writes `/tmp/pi-review.json` with this structure:
 
 ```json
 {

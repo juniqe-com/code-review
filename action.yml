@@ -1,5 +1,5 @@
-name: "OpenCode Code Review"
-description: "AI-powered code review using OpenCode. Posts inline comments on PR files."
+name: "Pi Code Review"
+description: "AI-powered code review using Pi. Posts inline comments on PR files."
 branding:
   icon: "eye"
   color: "purple"
@@ -8,16 +8,16 @@ inputs:
   model:
     description: "Model to use in provider/model format (e.g. anthropic/claude-sonnet-4-20250514)"
     required: true
-  variant:
-    description: "Optional provider-specific model variant (e.g. xhigh for GPT-5.4, max for Claude)"
+  thinking:
+    description: "Optional thinking level (e.g. off, minimal, low, medium, high, xhigh)"
     required: false
     default: ""
   github_token:
     description: "GitHub token for posting review comments. Defaults to the built-in GITHUB_TOKEN."
     required: false
     default: ${{ github.token }}
-  opencode_version:
-    description: "OpenCode version to install (default: latest)"
+  pi_version:
+    description: "Pi version to install (default: latest)"
     required: false
     default: "latest"
   review_prompt:
@@ -29,22 +29,21 @@ inputs:
     required: false
     default: "100000"
   extra_env:
-    description: "Extra environment variables to pass to OpenCode as KEY=VALUE lines"
+    description: "Extra environment variables to pass to Pi as KEY=VALUE lines"
     required: false
     default: ""
 
 runs:
   using: "composite"
   steps:
-    - name: Install OpenCode
+    - name: Install Pi
       shell: bash
       run: |
-        if command -v opencode &>/dev/null; then
-          echo "OpenCode already installed: $(opencode --version)"
+        if command -v pi &>/dev/null; then
+          echo "Pi already installed: $(pi --version)"
         else
-          echo "Installing OpenCode..."
-          curl -fsSL https://opencode.ai/install | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "Installing Pi..."
+          npm install -g @mariozechner/pi-coding-agent@${{ inputs.pi_version }}
         fi
 
     - name: Run review
@@ -52,7 +51,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         INPUT_MODEL: ${{ inputs.model }}
-        INPUT_VARIANT: ${{ inputs.variant }}
+        INPUT_VARIANT: ${{ inputs.thinking }}
         INPUT_REVIEW_PROMPT: ${{ inputs.review_prompt }}
         INPUT_MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}
         INPUT_EXTRA_ENV: ${{ inputs.extra_env }}
@@ -60,8 +59,7 @@ runs:
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
-        # allow all tools without interactive prompts
-        OPENCODE_PERMISSION: '{"*":"allow"}'
+        # Pi has no permission popups by default
       run: |
         # Export any extra env vars the user passed
         if [ -n "$INPUT_EXTRA_ENV" ]; then
