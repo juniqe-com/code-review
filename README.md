@@ -10,6 +10,8 @@ AI-powered code review GitHub Action using [Pi](https://github.com/badlogic/pi-m
 - **Summary comment** — An optional overall summary with a verdict (approve / request changes / comment) is posted on the PR.
 - **Findings outside the diff** — If Pi finds an issue on a line that isn't part of the diff, it's included in the summary table instead of being silently dropped.
 - **Configurable model + thinking** — Use any provider/model supported by Pi and optionally choose a thinking level.
+- **Multi-model A/B testing** — Supply a comma-separated list of models; one is picked at random per review so you can compare quality over time.
+- **Comment grading** — Each inline comment includes a 👍 / 👎 prompt. A separate grades workflow aggregates reactions into per-model scores and maintains a stats issue in your repo.
 
 ## Quick start
 
@@ -86,12 +88,72 @@ You can optionally set `thinking` to control the reasoning level.
 
 Available thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`.
 
+### Multi-model A/B testing
+
+Pass a comma-separated list via `models` and one is chosen at random each run:
+
+```yaml
+- uses: your-org/code-review@main
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  with:
+    models: >-
+      anthropic/claude-sonnet-4-20250514,
+      openai/gpt-5.4
+```
+
+Combine with the [grades workflow](#comment-grading) to compare model quality.
+
+## Comment grading
+
+Every inline review comment includes a rating prompt:
+
+> Was this helpful? React with 👍 or 👎
+
+A **separate workflow** collects these reactions and maintains a GitHub issue
+in your repo with per-model performance stats.
+
+### Setup
+
+Create `.github/workflows/pi-grades.yml`:
+
+```yaml
+name: Pi Review Grades
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # every Monday 9 AM UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  grades:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: your-org/code-review/grades@main
+```
+
+On the first run it creates a `pi-review-stats` labelled issue. Subsequent
+runs update the same issue with the latest numbers:
+
+| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score |
+|-------|-----------|----------------|----------------|-------|
+| `anthropic/claude-sonnet-4-20250514` | 23 | 5 | 28 / 40 | 82% |
+| `openai/gpt-5.4` | 15 | 3 | 18 / 35 | 83% |
+
 ## Inputs
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `model` | yes | — | Model in `provider/model` format |
+| `model` | no\* | — | Single model in `provider/model` format. Ignored when `models` is set. |
+| `models` | no\* | — | Comma-separated list of models — one is picked at random per run. |
 | `thinking` | no | `""` | Optional thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+
+\* Either `model` or `models` must be provided.
 | `github_token` | no | `${{ github.token }}` | Token for posting comments |
 | `pi_version` | no | `latest` | Pi version to install |
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |
@@ -117,8 +179,22 @@ Available thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`.
 │     → Pi can read ANY file in the codebase              │
 │     → writes findings to /tmp/pi-review.json            │
 │  7. Post each finding as an inline PR comment           │
+│     (with 👍/👎 rating prompt + model tag)              │
 │  8. Post overall summary comment                        │
 └─────────────────────────────────────────────────────────┘
+
+Grades workflow (separate):
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Runs on schedule / manual dispatch                     │
+│                                                         │
+│  1. Scan all PR review comments for pi-review markers   │
+│  2. Read 👍/👎 reaction counts per comment              │
+│  3. Aggregate stats per model                           │
+│  4. Create or update a pi-review-stats issue            │
+└─────────────────────────────────────────────────────────┘
+```
 ```
 
 ## Custom review instructions
@@ -167,6 +243,13 @@ The workflow needs these GitHub token permissions:
 |------------|-------|-----|
 | `contents` | `read` | Read repo files and generate diffs |
 | `pull-requests` | `write` | Post review comments and summary |
+
+The **grades workflow** needs:
+
+| Permission | Level | Why |
+|------------|-------|-----|
+| `pull-requests` | `read` | Read review comment reactions |
+| `issues` | `write` | Create / update the stats issue |
 
 ## License
 

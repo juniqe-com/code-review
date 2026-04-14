@@ -6,8 +6,13 @@ branding:
 
 inputs:
   model:
-    description: "Model to use in provider/model format (e.g. anthropic/claude-sonnet-4-20250514)"
-    required: true
+    description: "Single model in provider/model format. Ignored when 'models' is set."
+    required: false
+    default: ""
+  models:
+    description: "Comma-separated list of models to randomly choose from (e.g. 'openai/gpt-5.4, anthropic/claude-sonnet-4-20250514'). One is picked at random per run."
+    required: false
+    default: ""
   thinking:
     description: "Optional thinking level (e.g. off, minimal, low, medium, high, xhigh)"
     required: false
@@ -46,11 +51,42 @@ runs:
           npm install -g @mariozechner/pi-coding-agent@${{ inputs.pi_version }}
         fi
 
+    - name: Select model
+      id: select-model
+      shell: bash
+      run: |
+        MODELS_CSV="${{ inputs.models }}"
+        SINGLE="${{ inputs.model }}"
+
+        if [ -n "$MODELS_CSV" ]; then
+          IFS=',' read -ra CANDIDATES <<< "$MODELS_CSV"
+        elif [ -n "$SINGLE" ]; then
+          CANDIDATES=("$SINGLE")
+        else
+          echo "::error::Either 'model' or 'models' input must be provided."
+          exit 1
+        fi
+
+        TRIMMED=()
+        for m in "${CANDIDATES[@]}"; do
+          t="$(echo "$m" | xargs)"
+          [ -n "$t" ] && TRIMMED+=("$t")
+        done
+
+        if [ "${#TRIMMED[@]}" -eq 0 ]; then
+          echo "::error::No valid models found in input."
+          exit 1
+        fi
+
+        SELECTED="${TRIMMED[$((RANDOM % ${#TRIMMED[@]}))]}"
+        echo "model=${SELECTED}" >> "$GITHUB_OUTPUT"
+        echo "::notice::Selected model: ${SELECTED}"
+
     - name: Run review
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_MODEL: ${{ steps.select-model.outputs.model }}
         INPUT_VARIANT: ${{ inputs.thinking }}
         INPUT_REVIEW_PROMPT: ${{ inputs.review_prompt }}
         INPUT_MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}

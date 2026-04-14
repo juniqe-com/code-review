@@ -1,0 +1,17 @@
+name: Pi Review Grades
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # every Monday 9 AM UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  grades:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update model performance stats
+        uses: your-org/code-review/grades@main # ← replace with your action ref

@@ -1,0 +1,21 @@
+name: "Pi Review Grades"
+description: "Collects reaction-based grades on Pi review comments and maintains a stats issue."
+branding:
+  icon: "bar-chart-2"
+  color: "blue"
+
+inputs:
+  github_token:
+    description: "GitHub token for reading review comments and managing the stats issue."
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Collect grades & update stats
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: bash "${{ github.action_path }}/../scripts/grades.sh"

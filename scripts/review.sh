@@ -297,7 +297,11 @@ for i in $(seq 0 $((FINDINGS_COUNT - 1))); do
 
 	COMMENT_BODY="${SEV_ICON} **${F_TITLE}**
 
-${F_BODY}"
+${F_BODY}
+
+---
+<sub>Was this helpful? React with 👍 or 👎</sub>
+<!-- pi-review-model: ${MODEL} -->"
 
 	# Build the API payload
 	PAYLOAD=$(jq -n \

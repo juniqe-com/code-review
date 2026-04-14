@@ -20,15 +20,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # full history — Pi needs the whole codebase
+          fetch-depth: 0 # full history — Pi needs the whole codebase
           persist-credentials: false
 
       - name: Run Pi review
-        uses: your-org/code-review@main   # ← replace with your action ref
+        uses: your-org/code-review@main # ← replace with your action ref
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
-          model: anthropic/claude-sonnet-4-20250514
+          # Multiple models — one is picked at random per review.
+          # Great for A/B testing model quality.
+          models: >-
+            anthropic/claude-sonnet-4-20250514,
+            openai/gpt-5.4
+          # Or use a single model:
+          # model: anthropic/claude-sonnet-4-20250514
           # thinking: high
           # review_prompt: |
           #   Also check for compliance with our internal API design guidelines
