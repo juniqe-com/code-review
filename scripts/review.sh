@@ -159,7 +159,7 @@ You are a senior code reviewer. Your job is to review the pull request below.
 ```json
 {
   "summary": "<markdown summary of the review>",
-  "verdict": "approve | request_changes | comment",
+  "verdict": "approve | request_changes",
   "findings": [
     {
       "path": "relative/path/to/file",
@@ -175,6 +175,9 @@ You are a senior code reviewer. Your job is to review the pull request below.
 
    - `line` / `end_line`: line numbers in the new (HEAD) version of the file.
      For single-line comments set both to the same value.
+   - `verdict`: Use `approve` when the PR is mergeable — including when you
+     found only minor suggestions or warnings that should not block merging.
+     Use `request_changes` only for serious issues (bugs, security, correctness).
    - If there are no findings, set `findings` to an empty array `[]`.
    - You MUST write this file as your final action. The CI pipeline reads it.
 
@@ -267,12 +270,13 @@ fi
 FINDINGS_COUNT=$(jq '.findings | length' "$OUTPUT_FILE")
 echo "Findings: ${FINDINGS_COUNT}"
 
+COMMIT_SHAS=$(git log --format='`%h`' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -sd ',' - | sed 's/,/, /g')
+
 if [ "$FINDINGS_COUNT" -eq 0 ]; then
-	echo "No issues found — posting clean comment."
-	COMMIT_SHAS=$(git log --format='`%h`' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -sd ',' - | sed 's/,/, /g')
+	echo "No issues found — posting LGTM."
 	gh api \
 		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
-		-f body="Did not find any issues in commits ${COMMIT_SHAS}"
+		-f body="LGTM 👍 — reviewed commits ${COMMIT_SHAS}"
 fi
 
 FAILED_COMMENTS=""
@@ -351,6 +355,17 @@ ${FAILED_COMMENTS}"
 	gh api \
 		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
 		-f body="$SUMMARY_BODY"
+fi
+
+# Post LGTM if the PR is mergeable (approve/comment verdict, even with minor findings)
+if [ "$FINDINGS_COUNT" -gt 0 ]; then
+	VERDICT=$(jq -r '.verdict // "approve"' "$OUTPUT_FILE")
+	if [ "$VERDICT" != "request_changes" ]; then
+		echo "Verdict '${VERDICT}' — PR is mergeable, posting LGTM."
+		gh api \
+			"repos/${REPO}/issues/${PR_NUMBER}/comments" \
+			-f body="LGTM 👍 — reviewed commits ${COMMIT_SHAS}. Some minor suggestions were posted but nothing blocking."
+	fi
 fi
 
 echo "::endgroup::"
