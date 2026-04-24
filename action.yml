@@ -54,33 +54,12 @@ runs:
     - name: Select model
       id: select-model
       shell: bash
-      run: |
-        MODELS_CSV="${{ inputs.models }}"
-        SINGLE="${{ inputs.model }}"
-
-        if [ -n "$MODELS_CSV" ]; then
-          IFS=',' read -ra CANDIDATES <<< "$MODELS_CSV"
-        elif [ -n "$SINGLE" ]; then
-          CANDIDATES=("$SINGLE")
-        else
-          echo "::error::Either 'model' or 'models' input must be provided."
-          exit 1
-        fi
-
-        TRIMMED=()
-        for m in "${CANDIDATES[@]}"; do
-          t="$(echo "$m" | xargs)"
-          [ -n "$t" ] && TRIMMED+=("$t")
-        done
-
-        if [ "${#TRIMMED[@]}" -eq 0 ]; then
-          echo "::error::No valid models found in input."
-          exit 1
-        fi
-
-        SELECTED="${TRIMMED[$((RANDOM % ${#TRIMMED[@]}))]}"
-        echo "model=${SELECTED}" >> "$GITHUB_OUTPUT"
-        echo "::notice::Selected model: ${SELECTED}"
+      env:
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_MODELS: ${{ inputs.models }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: bash "${{ github.action_path }}/scripts/select-model.sh"
 
     - name: Run review
       shell: bash

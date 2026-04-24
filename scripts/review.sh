@@ -274,9 +274,21 @@ COMMIT_SHAS=$(git log --format='`%h`' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -
 
 if [ "$FINDINGS_COUNT" -eq 0 ]; then
 	echo "No issues found — posting LGTM."
+
+	STATS_URL=$(gh api \
+		"repos/${REPO}/issues?labels=pi-review-stats&state=open&per_page=1" \
+		--jq '.[0].html_url // ""' 2>/dev/null || echo "")
+
+	LGTM_BODY="LGTM 👍 — reviewed commits ${COMMIT_SHAS}.
+
+React 👍 / 👎 on each of Pi's review comments."
+	if [ -n "$STATS_URL" ]; then
+		LGTM_BODY="${LGTM_BODY} [See live model stats](${STATS_URL})."
+	fi
+
 	gh api \
 		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
-		-f body="LGTM 👍 — reviewed commits ${COMMIT_SHAS}"
+		-f body="$LGTM_BODY"
 fi
 
 FAILED_COMMENTS=""

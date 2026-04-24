@@ -10,7 +10,7 @@ AI-powered code review GitHub Action using [Pi](https://github.com/badlogic/pi-m
 - **Summary comment** — An optional overall summary with a verdict (approve / request changes / comment) is posted on the PR.
 - **Findings outside the diff** — If Pi finds an issue on a line that isn't part of the diff, it's included in the summary table instead of being silently dropped.
 - **Configurable model + thinking** — Use any provider/model supported by Pi and optionally choose a thinking level.
-- **Multi-model A/B testing** — Supply a comma-separated list of models; one is picked at random per review so you can compare quality over time.
+- **Multi-model A/B testing** — Supply a comma-separated list of models; one is picked per review. Selection is weighted by each model's 👍 / 👎 score from the grades issue, so better-performing models get more volume while unproven ones still get explored.
 - **Comment grading** — Each inline comment includes a 👍 / 👎 prompt. A separate grades workflow aggregates reactions into per-model scores and maintains a stats issue in your repo.
 
 ## Quick start
@@ -90,7 +90,7 @@ Available thinking levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`.
 
 ### Multi-model A/B testing
 
-Pass a comma-separated list via `models` and one is chosen at random each run:
+Pass a comma-separated list via `models` and one is chosen per run:
 
 ```yaml
 - uses: your-org/code-review@main
@@ -104,6 +104,19 @@ Pass a comma-separated list via `models` and one is chosen at random each run:
 ```
 
 Combine with the [grades workflow](#comment-grading) to compare model quality.
+
+#### Weighted selection
+
+Once the grades workflow has run at least once, selection is weighted by each
+model's 👍 / 👎 score from the stats issue — models with a higher helpful
+ratio receive more reviews on average. Weights use Bayesian shrinkage
+(α = 2) so noisy small-sample scores are pulled toward 50%, and every model
+keeps a minimum weight of 10 so under-performing or brand-new models still
+get explored. Each run logs the effective per-model share in the action log.
+
+For weighting to work, the review workflow token needs `issues: read` in
+addition to the default permissions. Without it (or before the first grades
+run), selection transparently falls back to uniform random.
 
 ## Comment grading
 
@@ -243,6 +256,7 @@ The workflow needs these GitHub token permissions:
 |------------|-------|-----|
 | `contents` | `read` | Read repo files and generate diffs |
 | `pull-requests` | `write` | Post review comments and summary |
+| `issues` | `read` | _Optional._ Read the grades stats issue to weight model selection. Falls back to uniform random when missing. |
 
 The **grades workflow** needs:
 

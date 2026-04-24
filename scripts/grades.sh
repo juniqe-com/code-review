@@ -65,6 +65,7 @@ echo "::endgroup::"
 # ── Step 3: Build issue body ─────────────────────────────────────────────────
 
 HAS_DATA=$(echo "$STATS" | jq 'length > 0')
+STATS_JSON_COMPACT=$(echo "$STATS" | jq -c '.')
 
 if [ "$HAS_DATA" = "true" ]; then
 	TABLE_ROWS=$(echo "$STATS" | jq -r '.[] |
@@ -90,8 +91,13 @@ ${TABLE_ROWS}
 
 Each review comment posted by Pi includes a 👍 / 👎 prompt.
 This issue is auto-updated by the **Pi Review Grades** workflow.
+The review action reads the data block below to weight model selection by score.
 
-_Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_"
+_Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_
+
+<!-- pi-review-stats-data
+${STATS_JSON_COMPACT}
+-->"
 else
 	STATS_BODY="No review comments with reactions found yet.
 
@@ -103,7 +109,11 @@ stats will appear here automatically.
 Each review comment posted by Pi includes a 👍 / 👎 prompt.
 This issue is auto-updated by the **Pi Review Grades** workflow.
 
-_Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_"
+_Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_
+
+<!-- pi-review-stats-data
+[]
+-->"
 fi
 
 # ── Step 4: Upsert the stats issue ──────────────────────────────────────────
