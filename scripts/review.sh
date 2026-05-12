@@ -25,6 +25,7 @@ MODEL="${INPUT_MODEL}"
 VARIANT="${INPUT_VARIANT:-}"
 MAX_DIFF_SIZE="${INPUT_MAX_DIFF_SIZE:-100000}"
 CUSTOM_PROMPT="${INPUT_REVIEW_PROMPT:-}"
+REVIEW_TIMEOUT="${INPUT_REVIEW_TIMEOUT:-900}"
 
 # ── Step 1: Fetch PR context via GraphQL ─────────────────────────────────────
 
@@ -248,11 +249,21 @@ if [ -n "$VARIANT" ]; then
 	PI_ARGS+=(--thinking "$VARIANT")
 fi
 
-cat "$PROMPT_FILE" | pi "${PI_ARGS[@]}" \
-	2>&1 | tee /tmp/pi-stdout.txt || {
-	echo "::error::Pi exited with a non-zero status"
+echo "Timeout: ${REVIEW_TIMEOUT}s"
+
+# `timeout` exits 124 on SIGTERM, 137 on SIGKILL (after --kill-after).
+# Either signals a hang (commonly seen with gemini stalling on tool calls).
+cat "$PROMPT_FILE" | timeout --kill-after=15s "$REVIEW_TIMEOUT" pi "${PI_ARGS[@]}" \
+	2>&1 | tee /tmp/pi-stdout.txt || true
+PI_EXIT=${PIPESTATUS[1]}
+
+if [ "$PI_EXIT" -eq 124 ] || [ "$PI_EXIT" -eq 137 ]; then
+	echo "::error::Pi timed out after ${REVIEW_TIMEOUT}s (model: ${MODEL}). The model likely hung — check stdout above."
 	exit 1
-}
+elif [ "$PI_EXIT" -ne 0 ]; then
+	echo "::error::Pi exited with status ${PI_EXIT}"
+	exit 1
+fi
 
 echo "::endgroup::"
 

@@ -33,6 +33,10 @@ inputs:
     description: "Maximum diff size in bytes before truncation (default: 100000)"
     required: false
     default: "100000"
+  review_timeout:
+    description: "Seconds to wait for Pi before killing the review and failing the action. Default 900 (15 min) is ~2x observed median, well above p90 — catches hangs without killing legitimately slow runs."
+    required: false
+    default: "900"
   extra_env:
     description: "Extra environment variables to pass to Pi as KEY=VALUE lines"
     required: false
@@ -69,6 +73,7 @@ runs:
         INPUT_VARIANT: ${{ inputs.thinking }}
         INPUT_REVIEW_PROMPT: ${{ inputs.review_prompt }}
         INPUT_MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}
+        INPUT_REVIEW_TIMEOUT: ${{ inputs.review_timeout }}
         INPUT_EXTRA_ENV: ${{ inputs.extra_env }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
