@@ -243,7 +243,7 @@ echo "::group::Running Pi"
 # Clean any leftover output from a previous run
 rm -f "$OUTPUT_FILE"
 
-PI_ARGS=(-p --model "$MODEL")
+PI_ARGS=(-p --no-context-files --model "$MODEL")
 
 if [ -n "$VARIANT" ]; then
 	PI_ARGS+=(--thinking "$VARIANT")
