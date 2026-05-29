@@ -234,7 +234,8 @@ Pi writes `/tmp/pi-review.json` with this structure:
 ```json
 {
   "summary": "Markdown summary of the review",
-  "verdict": "approve | request_changes | comment",
+  "verdict": "approve | request_changes",
+  "complete": true,
   "findings": [
     {
       "path": "src/handler.ts",
@@ -247,6 +248,13 @@ Pi writes `/tmp/pi-review.json` with this structure:
   ]
 }
 ```
+
+Pi rewrites this file incrementally — re-emitting the whole object each time it
+confirms a finding — so a review killed by `review_timeout` still leaves whatever
+it gathered on disk. The `complete` flag is `false` until Pi's final write. If a
+run times out with `complete: false`, the action posts the findings it has plus a
+"partial review" notice (never an LGTM) and exits non-zero so the incomplete run
+stays visible.
 
 ## Permissions
 

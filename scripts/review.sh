@@ -154,13 +154,14 @@ You are a senior code reviewer. Your job is to review the pull request below.
    to the repo root) and line number(s) in the HEAD version of the file. If
    you are unsure, read the file first.
 
-5. **Structured output** — After your analysis, write a JSON file to
+5. **Structured output (write it incrementally!)** — Maintain a JSON file at
    `/tmp/pi-review.json` with this exact schema:
 
 ```json
 {
   "summary": "<markdown summary of the review>",
   "verdict": "approve | request_changes",
+  "complete": false,
   "findings": [
     {
       "path": "relative/path/to/file",
@@ -174,15 +175,39 @@ You are a senior code reviewer. Your job is to review the pull request below.
 }
 ```
 
+   - **Write this file EARLY and rewrite it every time you confirm a new
+     finding.** Always write the COMPLETE JSON object (the summary plus every
+     finding so far) so the file is valid JSON at every moment. You may be
+     stopped at any time, and whatever is in this file is exactly what gets
+     posted — so never leave a confirmed finding only in your head.
+   - `complete`: keep this `false` while you are still working. Set it to
+     `true` ONLY in your final write, once the review is finished. A file left
+     at `complete: false` is treated as a partial / interrupted review and will
+     NOT be reported as an approval.
    - `line` / `end_line`: line numbers in the new (HEAD) version of the file.
      For single-line comments set both to the same value.
    - `verdict`: Use `approve` when the PR is mergeable — including when you
      found only minor suggestions or warnings that should not block merging.
      Use `request_changes` only for serious issues (bugs, security, correctness).
-   - If there are no findings, set `findings` to an empty array `[]`.
-   - You MUST write this file as your final action. The CI pipeline reads it.
+   - If there are genuinely no issues, set `findings` to `[]` AND `complete`
+     to `true`. The CI pipeline reads this file.
 
 INSTRUCTIONS
+
+# Time budget hint (rule 6). The model can't measure elapsed time itself, so
+# this only sets scope/effort — the hard `timeout` below is the real stop.
+# Round up to whole minutes.
+REVIEW_TIMEOUT_MIN=$(((REVIEW_TIMEOUT + 59) / 60))
+cat >>"$PROMPT_FILE" <<BUDGET
+6. **Time budget** — You have roughly ${REVIEW_TIMEOUT_MIN} minute(s) of
+   wall-clock time before you are stopped. You cannot measure elapsed time
+   yourself, so work as if time is short: triage the diff first, chase the
+   highest-impact findings, and don't try to read every file exhaustively.
+   Because you may be stopped at any moment, keep \`/tmp/pi-review.json\` up to
+   date as you go (rule 5) — whatever is in that file when you stop is what
+   gets posted.
+
+BUDGET
 
 # Append custom instructions if provided
 if [ -n "$CUSTOM_PROMPT" ]; then
@@ -260,9 +285,12 @@ PIPE=("${PIPESTATUS[@]}")
 set -e
 PI_EXIT=${PIPE[1]:-0}
 
+TIMED_OUT=false
 if [ "$PI_EXIT" -eq 124 ] || [ "$PI_EXIT" -eq 137 ]; then
-	echo "::error::Pi timed out after ${REVIEW_TIMEOUT}s (model: ${MODEL}). The model likely hung — check stdout above."
-	exit 1
+	# Don't bail — the model writes findings incrementally, so it may have left
+	# a partial review on disk before being killed. Fall through and salvage it.
+	TIMED_OUT=true
+	echo "::warning::Pi timed out after ${REVIEW_TIMEOUT}s (model: ${MODEL}). Salvaging any partial review."
 elif [ "$PI_EXIT" -ne 0 ]; then
 	echo "::error::Pi exited with status ${PI_EXIT}"
 	exit 1
@@ -270,40 +298,46 @@ fi
 
 echo "::endgroup::"
 
-# ── Step 6: Post inline comments ────────────────────────────────────────────
+# ── Step 6: Read & validate review output ────────────────────────────────────
 
-echo "::group::Posting review comments"
+echo "::group::Reading review output"
 
-if [ ! -f "$OUTPUT_FILE" ]; then
-	echo "::warning::Pi did not produce ${OUTPUT_FILE}."
+# A timeout can leave the file absent or (rarely) mid-write, so require valid
+# JSON before trusting it.
+if [ ! -f "$OUTPUT_FILE" ] || ! jq empty "$OUTPUT_FILE" >/dev/null 2>&1; then
 	echo "Pi stdout was:"
 	cat /tmp/pi-stdout.txt
+	if [ "$TIMED_OUT" = true ]; then
+		echo "::error::Pi timed out and left no valid ${OUTPUT_FILE} to salvage."
+		exit 1
+	fi
+	echo "::warning::Pi did not produce a valid ${OUTPUT_FILE}."
 	exit 0
 fi
+
+# A clean exit means the review finished. On a timeout we trust the `complete`
+# flag, which the model flips to true only as its final action — anything else
+# is a partial review and must not be reported as a clean pass.
+if [ "$TIMED_OUT" = true ]; then
+	IS_COMPLETE=$(jq -r 'if .complete == true then "true" else "false" end' "$OUTPUT_FILE")
+else
+	IS_COMPLETE=true
+fi
+
+if [ "$IS_COMPLETE" != "true" ]; then
+	echo "::warning::Partial review — Pi was interrupted before finishing. Posting findings gathered so far."
+fi
+
+echo "::endgroup::"
+
+# ── Step 7: Post inline comments ────────────────────────────────────────────
+
+echo "::group::Posting review comments"
 
 FINDINGS_COUNT=$(jq '.findings | length' "$OUTPUT_FILE")
 echo "Findings: ${FINDINGS_COUNT}"
 
 COMMIT_SHAS=$(git log --format='`%h`' "${PR_BASE_SHA}..${PR_HEAD_SHA}" | paste -sd ',' - | sed 's/,/, /g')
-
-if [ "$FINDINGS_COUNT" -eq 0 ]; then
-	echo "No issues found — posting LGTM."
-
-	STATS_URL=$(gh api \
-		"repos/${REPO}/issues?labels=pi-review-stats&state=open&per_page=1" \
-		--jq '.[0].html_url // ""' 2>/dev/null || echo "")
-
-	LGTM_BODY="LGTM 👍 — reviewed commits ${COMMIT_SHAS}.
-
-React 👍 / 👎 on each of Pi's review comments."
-	if [ -n "$STATS_URL" ]; then
-		LGTM_BODY="${LGTM_BODY} [See live model stats](${STATS_URL})."
-	fi
-
-	gh api \
-		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
-		-f body="$LGTM_BODY"
-fi
 
 FAILED_COMMENTS=""
 
@@ -383,8 +417,34 @@ ${FAILED_COMMENTS}"
 		-f body="$SUMMARY_BODY"
 fi
 
-# Post LGTM if the PR is mergeable (approve/comment verdict, even with minor findings)
-if [ "$FINDINGS_COUNT" -gt 0 ]; then
+# ── Final summary ────────────────────────────────────────────────────────────
+#
+# Order matters: a partial (timed-out) review must never post an all-clear, so
+# the incomplete case is checked before the zero-findings LGTM.
+if [ "$IS_COMPLETE" != "true" ]; then
+	echo "Partial review — posting interrupted-review notice (no LGTM)."
+	gh api \
+		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
+		-f body="⏱️ **Partial review** — Pi ran out of time (${REVIEW_TIMEOUT}s) and was stopped before finishing. The ${FINDINGS_COUNT} finding(s) above are what it gathered so far; the review is **incomplete**, so treat the absence of further comments as unknown, not as approval. Reviewed commits ${COMMIT_SHAS}."
+elif [ "$FINDINGS_COUNT" -eq 0 ]; then
+	echo "No issues found — posting LGTM."
+
+	STATS_URL=$(gh api \
+		"repos/${REPO}/issues?labels=pi-review-stats&state=open&per_page=1" \
+		--jq '.[0].html_url // ""' 2>/dev/null || echo "")
+
+	LGTM_BODY="LGTM 👍 — reviewed commits ${COMMIT_SHAS}.
+
+React 👍 / 👎 on each of Pi's review comments."
+	if [ -n "$STATS_URL" ]; then
+		LGTM_BODY="${LGTM_BODY} [See live model stats](${STATS_URL})."
+	fi
+
+	gh api \
+		"repos/${REPO}/issues/${PR_NUMBER}/comments" \
+		-f body="$LGTM_BODY"
+else
+	# Findings exist but the PR is still mergeable (verdict != request_changes).
 	VERDICT=$(jq -r '.verdict // "approve"' "$OUTPUT_FILE")
 	if [ "$VERDICT" != "request_changes" ]; then
 		echo "Verdict '${VERDICT}' — PR is mergeable, posting LGTM."
@@ -395,5 +455,13 @@ if [ "$FINDINGS_COUNT" -gt 0 ]; then
 fi
 
 echo "::endgroup::"
+
+# A partial review exits non-zero so the incomplete run stays visible as a
+# failed check, even though its findings were posted above. Flip this to
+# `exit 0` if the review must never block merges.
+if [ "$IS_COMPLETE" != "true" ]; then
+	echo "Partial review posted — exiting non-zero to flag incompleteness."
+	exit 1
+fi
 
 echo "Review complete."
