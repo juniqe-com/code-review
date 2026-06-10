@@ -22,9 +22,9 @@ inputs:
     required: false
     default: ${{ github.token }}
   pi_version:
-    description: "Pi version to install (default: latest)"
+    description: "Pi version to install. Defaults to a pinned, known-good version."
     required: false
-    default: "latest"
+    default: "0.79.1"
   review_prompt:
     description: "Custom review prompt to append to the default instructions. Use this to add project-specific review criteria."
     required: false
@@ -52,7 +52,8 @@ runs:
           echo "Pi already installed: $(pi --version)"
         else
           echo "Installing Pi..."
-          npm install -g @mariozechner/pi-coding-agent@${{ inputs.pi_version }}
+          # Pi moved from @mariozechner to @earendil-works; the old package is frozen at 0.73.1.
+          npm install -g @earendil-works/pi-coding-agent@${{ inputs.pi_version }}
         fi
 
     - name: Select model
