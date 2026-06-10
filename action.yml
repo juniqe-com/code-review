@@ -24,6 +24,7 @@ inputs:
   pi_version:
     description: "Pi version to install. Defaults to a pinned, known-good version."
     required: false
+    # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
     default: "0.79.1"
   review_prompt:
     description: "Custom review prompt to append to the default instructions. Use this to add project-specific review criteria."
