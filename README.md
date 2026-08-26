@@ -168,7 +168,7 @@ runs update the same issue with the latest numbers:
 
 \* Either `model` or `models` must be provided.
 | `github_token` | no | `${{ github.token }}` | Token for posting comments |
-| `pi_version` | no | `0.79.1` | Pi version to install |
+| `pi_version` | no | `0.84.3` | Pi version to install |
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |
 | `max_diff_size` | no | `100000` | Max diff bytes before truncation |
 | `post_summary` | no | `true` | Post an overall summary comment |
