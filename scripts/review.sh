@@ -364,7 +364,7 @@ for i in $(seq 0 $((FINDINGS_COUNT - 1))); do
 ${F_BODY}
 
 ---
-<sub>Was this helpful? React with 👍 or 👎</sub>
+Please rate this comment using 👍 or 👎. This helps us measure which LLM is a better reviewer.
 <!-- pi-review-model: ${MODEL} -->"
 
 	# Build the API payload
