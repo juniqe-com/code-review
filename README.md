@@ -122,7 +122,7 @@ run), selection transparently falls back to uniform random.
 
 Every inline review comment includes a rating prompt:
 
-> Was this helpful? React with 👍 or 👎
+> Please rate this comment using 👍 or 👎. This helps us measure which LLM is a better reviewer.
 
 A **separate workflow** collects these reactions and maintains a GitHub issue
 in your repo with per-model performance stats.
