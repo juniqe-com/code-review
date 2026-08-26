@@ -165,14 +165,14 @@ runs update the same issue with the latest numbers:
 | `model` | no\* | — | Single model in `provider/model` format. Ignored when `models` is set. |
 | `models` | no\* | — | Comma-separated list of models — one is picked at random per run. |
 | `thinking` | no | `""` | Optional thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` |
-
-\* Either `model` or `models` must be provided.
 | `github_token` | no | `${{ github.token }}` | Token for posting comments |
 | `pi_version` | no | `0.84.3` | Pi version to install |
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |
 | `max_diff_size` | no | `100000` | Max diff bytes before truncation |
-| `post_summary` | no | `true` | Post an overall summary comment |
+| `review_timeout` | no | `900` | Seconds to wait for Pi before stopping. The partial review is still posted, then the action fails. |
 | `extra_env` | no | `""` | Extra env vars as `KEY=VALUE` lines |
+
+\* Either `model` or `models` must be provided.
 
 ## How it works
 
