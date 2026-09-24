@@ -44,19 +44,45 @@ done
 
 TOTAL=$(echo "$ALL_GRADES" | jq 'length')
 echo "Found ${TOTAL} pi-review comments"
+
+PAGE=1
+ALL_COSTS="[]"
+while :; do
+	BATCH=$(gh api \
+		"repos/${REPO}/issues/comments?per_page=100&page=${PAGE}&sort=created&direction=desc")
+
+	COUNT=$(echo "$BATCH" | jq 'length')
+	PAGE_COSTS=$(echo "$BATCH" | jq '[
+		.[] | (.body // "" | capture("<!-- pi-review-cost: (?<data>[^\\n]+) -->").data | fromjson?) |
+		select(.model | type == "string") | select(.usd | type == "number" and . >= 0)
+	]')
+	ALL_COSTS=$(echo "$ALL_COSTS" "$PAGE_COSTS" | jq -s '.[0] + .[1]')
+
+	[ "$COUNT" -lt 100 ] && break
+	PAGE=$((PAGE + 1))
+done
+
+echo "Found $(echo "$ALL_COSTS" | jq 'length') reviews with cost data"
 echo "::endgroup::"
 
 # ── Step 2: Aggregate per model ──────────────────────────────────────────────
 
 echo "::group::Aggregating stats"
 
-STATS=$(echo "$ALL_GRADES" | jq '
-	group_by(.model) | map({
+STATS=$(jq -n --argjson grades "$ALL_GRADES" --argjson costs "$ALL_COSTS" '
+	(($grades | group_by(.model) | map({
 		model:   .[0].model,
 		up:      ([.[].up]   | add),
 		down:    ([.[].down] | add),
 		graded:  ([.[] | select(.up > 0 or .down > 0)] | length),
 		total:   length
+	})) + ($costs | group_by(.model) | map({
+		model:   .[0].model,
+		reviews: length,
+		cost:    ([.[].usd] | add)
+	}))) | group_by(.model) | map(add | . + {
+		up: (.up // 0), down: (.down // 0), graded: (.graded // 0),
+		total: (.total // 0), reviews: (.reviews // 0), cost: (.cost // 0)
 	}) | sort_by(-.up)')
 
 echo "$STATS" | jq -r '.[] | "  \(.model): \(.up)👍 \(.down)👎  (\(.graded)/\(.total) graded)"'
@@ -75,17 +101,20 @@ if [ "$HAS_DATA" = "true" ]; then
 		(.graded | tostring) + " / " + (.total | tostring) + " | " +
 		(if (.up + .down) > 0
 		 then ((.up * 100 / (.up + .down)) | round | tostring) + "%"
-		 else "—" end) +
-		" |"')
+		 else "—" end) + " | " +
+		(.reviews | tostring) + " | " +
+		(if .reviews > 0 then "$" + ((.cost / .reviews * 10000 | round / 10000) | tostring)
+		 else "—" end) + " |"')
 
 	TOTAL_ALL=$(echo "$STATS" | jq '[.[].total] | add')
 	TOTAL_GRADED=$(echo "$STATS" | jq '[.[].graded] | add')
 
-	STATS_BODY="| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score |
-|-------|-----------|----------------|----------------|-------|
+	STATS_BODY="| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
+|-------|-----------|----------------|----------------|-------|-------------------|-------------------|
 ${TABLE_ROWS}
 
 > **Score** = helpful ÷ (helpful + not helpful). Based on ${TOTAL_GRADED} graded out of ${TOTAL_ALL} total review comments.
+> **Avg cost / review** = Pi-reported USD cost ÷ completed review runs with cost data. Earlier runs and interrupted reviews have no cost data.
 
 ---
 
