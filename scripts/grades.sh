@@ -69,7 +69,10 @@ echo "::endgroup::"
 
 echo "::group::Aggregating stats"
 
-STATS=$(jq -n --argjson grades "$ALL_GRADES" --argjson costs "$ALL_COSTS" '
+ACTIVE_MODELS=$(gh api "repos/${REPO}/contents/.github/workflows/pi-review.yml" \
+	-H 'Accept: application/vnd.github.raw+json' | python3 "$(dirname "$0")/active-models.py")
+
+STATS=$(jq -n --argjson grades "$ALL_GRADES" --argjson costs "$ALL_COSTS" --argjson active "$ACTIVE_MODELS" '
 	(($grades | group_by(.model) | map({
 		model:   .[0].model,
 		up:      ([.[].up]   | add),
@@ -80,7 +83,7 @@ STATS=$(jq -n --argjson grades "$ALL_GRADES" --argjson costs "$ALL_COSTS" '
 		model:   .[0].model,
 		reviews: length,
 		cost:    ([.[].usd] | add)
-	}))) | group_by(.model) | map(add | . + {
+	})) + ($active | map({model: .}))) | group_by(.model) | map(add | . + {
 		up: (.up // 0), down: (.down // 0), graded: (.graded // 0),
 		total: (.total // 0), reviews: (.reviews // 0), cost: (.cost // 0)
 	}) | sort_by(-.up)')
@@ -90,11 +93,12 @@ echo "::endgroup::"
 
 # ── Step 3: Build issue body ─────────────────────────────────────────────────
 
-HAS_DATA=$(echo "$STATS" | jq 'length > 0')
-STATS_JSON_COMPACT=$(echo "$STATS" | jq -c '.')
+ACTIVE_STATS=$(jq -n --argjson stats "$STATS" --argjson active "$ACTIVE_MODELS" '$stats | map(select(.model as $model | $active | index($model)))')
+ARCHIVED_STATS=$(jq -n --argjson stats "$STATS" --argjson active "$ACTIVE_MODELS" '$stats | map(select(.model as $model | $active | index($model) | not))')
+STATS_JSON_COMPACT=$(echo "$ACTIVE_STATS" | jq -c '.')
 
-if [ "$HAS_DATA" = "true" ]; then
-	TABLE_ROWS=$(echo "$STATS" | jq -r '.[] |
+render_rows() {
+	jq -r '.[] |
 		"| `" + .model + "` | " +
 		(.up | tostring) + " | " +
 		(.down | tostring) + " | " +
@@ -104,46 +108,48 @@ if [ "$HAS_DATA" = "true" ]; then
 		 else "—" end) + " | " +
 		(.reviews | tostring) + " | " +
 		(if .reviews > 0 then "$" + ((.cost / .reviews * 10000 | round / 10000) | tostring)
-		 else "—" end) + " |"')
+		 else "—" end) + " |"'
+}
 
-	TOTAL_ALL=$(echo "$STATS" | jq '[.[].total] | add')
-	TOTAL_GRADED=$(echo "$STATS" | jq '[.[].graded] | add')
+TABLE_HEADER='| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
+|-------|-----------|----------------|----------------|-------|-------------------|-------------------|'
+TABLE_ROWS=$(echo "$ACTIVE_STATS" | render_rows)
+TOTAL_ALL=$(echo "$ACTIVE_STATS" | jq '[.[].total] | add')
+TOTAL_GRADED=$(echo "$ACTIVE_STATS" | jq '[.[].graded] | add')
+ARCHIVED_COUNT=$(echo "$ARCHIVED_STATS" | jq 'length')
+ARCHIVED_BODY=''
+if [ "$ARCHIVED_COUNT" -gt 0 ]; then
+	ARCHIVED_ROWS=$(echo "$ARCHIVED_STATS" | render_rows)
+	ARCHIVED_BODY="<details>
+<summary>Archived models (${ARCHIVED_COUNT})</summary>
 
-	STATS_BODY="| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
-|-------|-----------|----------------|----------------|-------|-------------------|-------------------|
+${TABLE_HEADER}
+${ARCHIVED_ROWS}
+
+</details>"
+fi
+
+STATS_BODY="Models in use (from the default branch Pi review workflow):
+
+${TABLE_HEADER}
 ${TABLE_ROWS}
 
-> **Score** = helpful ÷ (helpful + not helpful). Based on ${TOTAL_GRADED} graded out of ${TOTAL_ALL} total review comments.
+> **Score** = helpful ÷ (helpful + not helpful). Based on ${TOTAL_GRADED} graded out of ${TOTAL_ALL} total active-model review comments.
 > **Avg cost / review** = Pi-reported USD cost ÷ completed review runs with cost data. Earlier runs and interrupted reviews have no cost data.
+
+${ARCHIVED_BODY}
 
 ---
 
 Each review comment posted by Pi includes a 👍 / 👎 prompt.
 This issue is auto-updated by the **Pi Review Grades** workflow.
-The review action reads the data block below to weight model selection by score.
+The review action reads the active-model data block below to weight model selection by score.
 
 _Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_
 
 <!-- pi-review-stats-data
 ${STATS_JSON_COMPACT}
 -->"
-else
-	STATS_BODY="No review comments with reactions found yet.
-
-Once Pi starts posting review comments and authors react with 👍 or 👎,
-stats will appear here automatically.
-
----
-
-Each review comment posted by Pi includes a 👍 / 👎 prompt.
-This issue is auto-updated by the **Pi Review Grades** workflow.
-
-_Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_
-
-<!-- pi-review-stats-data
-[]
--->"
-fi
 
 # ── Step 4: Upsert the stats issue ──────────────────────────────────────────
 
