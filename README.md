@@ -140,6 +140,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   issues: write
   pull-requests: read
 
@@ -150,8 +151,15 @@ jobs:
       - uses: your-org/code-review/grades@main
 ```
 
-On the first run it creates a `pi-review-stats` labelled issue. Subsequent
-runs update the same issue with the latest numbers:
+The grades action reads the model list from `.github/workflows/pi-review.yml` on
+its default branch. On the first run it creates a `pi-review-stats` labelled
+issue; subsequent runs update it. The main table shows the configured models,
+even if they have no reviews yet. Models removed from that workflow retain
+their historical figures in a collapsed **Archived models** section, but are
+excluded from the machine-readable data used to weight model selection.
+The workflow must configure literal `model` or `models` values on the
+`code-review` step; dynamic expressions cannot be resolved.
+The issue contains a table like this:
 
 | Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
 |-------|-----------|----------------|----------------|-------|-------------------|-------------------|
@@ -211,8 +219,9 @@ Grades workflow (separate):
 │                                                         │
 │  1. Scan all PR review comments for pi-review markers   │
 │  2. Read 👍/👎 reactions and recorded review costs      │
-│  3. Aggregate quality and mean cost per model           │
-│  4. Create or update a pi-review-stats issue            │
+│  3. Read configured models from the review workflow      │
+│  4. Split active and archived model statistics           │
+│  5. Create or update a pi-review-stats issue             │
 └─────────────────────────────────────────────────────────┘
 ```
 ```
@@ -279,6 +288,7 @@ The **grades workflow** needs:
 |------------|-------|-----|
 | `pull-requests` | `read` | Read review comment reactions |
 | `issues` | `write` | Create / update the stats issue |
+| `contents` | `read` | Read the configured model list from the default branch review workflow |
 
 ## License
 

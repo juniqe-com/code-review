@@ -25,6 +25,26 @@ printf '%s\n' \
   '[{"body":"<!-- pi-review-model: anthropic/model-a -->","reactions":{"+1":2,"-1":1}}, {"body":"<!-- pi-review-model: anthropic/model-a -->","reactions":{"+1":1,"-1":0}}]' >"$TMP/grades.json"
 printf '%s\n' \
   '[{"body":"Pi review cost: $0.50 USD.\n<!-- pi-review-cost: {\"model\":\"anthropic/model-a\",\"usd\":0.5} -->"}, {"body":"<!-- pi-review-cost: {\"model\":\"anthropic/model-a\",\"usd\":1.5} -->"}, {"body":"<!-- pi-review-cost: {\"model\":\"openai/model-b\",\"usd\":0.2} -->"}, {"body":"<!-- pi-review-cost: invalid -->"}]' >"$TMP/costs.json"
+printf '%s\n' \
+  'jobs:' \
+  '  review:' \
+  '    steps:' \
+  '      - name: Run Pi review' \
+  '        uses: juniqe-com/code-review@v1.8.5' \
+  '        env:' \
+  '          OPENAI_API_KEY: secret' \
+  '        with:' \
+  '          models: >-' \
+  '            anthropic/model-a,' \
+  '            openai/model-c' \
+  >"$TMP/workflow.yml"
+python3 "$ROOT/scripts/active-models.py" <"$TMP/workflow.yml" | jq -e '. == ["anthropic/model-a", "openai/model-c"]' >/dev/null
+printf '%s\n' \
+  'steps:' \
+  '  - uses: example/code-review@v1' \
+  '    with:' \
+  '      model: "openai/model-b"' \
+  | python3 "$ROOT/scripts/active-models.py" | jq -e '. == ["openai/model-b"]' >/dev/null
 
 cat >"$TMP/bin/gh" <<'MOCK'
 #!/usr/bin/env bash
@@ -32,6 +52,7 @@ set -euo pipefail
 case "$2" in
   repos/test/review/pulls/comments*) cat "$FIXTURE_DIR/grades.json" ;;
   repos/test/review/issues/comments*) cat "$FIXTURE_DIR/costs.json" ;;
+  repos/test/review/contents/.github/workflows/pi-review.yml) cat "$FIXTURE_DIR/workflow.yml" ;;
   repos/test/review/labels) printf '%s\n' '{}' ;;
   'repos/test/review/issues?labels='*) printf '%s\n' 42 ;;
   repos/test/review/issues/42)
@@ -47,21 +68,30 @@ MOCK
 chmod +x "$TMP/bin/gh"
 FIXTURE_DIR="$TMP" BODY_FILE="$TMP/issue.md" GITHUB_REPOSITORY=test/review PATH="$TMP/bin:$PATH" bash "$ROOT/scripts/grades.sh" >"$TMP/log"
 rg -q 'anthropic/model-a.*\| 2 \| \$1 ' "$TMP/issue.md"
+rg -q 'openai/model-c.*\| 0 \| — ' "$TMP/issue.md"
+rg -q '<summary>Archived models \(1\)</summary>' "$TMP/issue.md"
 rg -q 'openai/model-b.*\| 1 \| \$0.2 ' "$TMP/issue.md"
 rg -q 'Earlier runs and interrupted reviews have no cost data' "$TMP/issue.md"
 jq -en --arg data "$(awk '/<!-- pi-review-stats-data/{getline;print;exit}' "$TMP/issue.md")" '
   $data | fromjson |
   length == 2 and
   (map(select(.model == "anthropic/model-a"))[0] | .up == 3 and .down == 1 and .reviews == 2 and .cost == 2) and
-  (map(select(.model == "openai/model-b"))[0] | .up == 0 and .reviews == 1 and .cost == 0.2)
+  (map(select(.model == "openai/model-c"))[0] | .up == 0 and .reviews == 0 and .total == 0)
 ' >/dev/null
 
 printf '%s\n' '[]' >"$TMP/grades.json"
 FIXTURE_DIR="$TMP" BODY_FILE="$TMP/issue.md" GITHUB_REPOSITORY=test/review PATH="$TMP/bin:$PATH" bash "$ROOT/scripts/grades.sh" >"$TMP/log"
 rg -q 'openai/model-b.*\| 1 \| \$0.2 ' "$TMP/issue.md"
-rg -q '0 graded out of 0 total review comments' "$TMP/issue.md"
+rg -q '0 graded out of 0 total active-model review comments' "$TMP/issue.md"
 
 printf '%s\n' '[]' >"$TMP/costs.json"
 FIXTURE_DIR="$TMP" BODY_FILE="$TMP/issue.md" GITHUB_REPOSITORY=test/review PATH="$TMP/bin:$PATH" bash "$ROOT/scripts/grades.sh" >"$TMP/log"
-rg -q 'No review comments with reactions found yet' "$TMP/issue.md"
+rg -q 'openai/model-c.*\| 0 \| — ' "$TMP/issue.md"
+if rg -q '<summary>Archived models' "$TMP/issue.md"; then
+  exit 1
+fi
+printf '%s\n' '[]' >"$TMP/workflow.yml"
+if FIXTURE_DIR="$TMP" BODY_FILE="$TMP/issue.md" GITHUB_REPOSITORY=test/review PATH="$TMP/bin:$PATH" bash "$ROOT/scripts/grades.sh" >"$TMP/log" 2>&1; then
+  exit 1
+fi
 printf '%s\n' 'Cost reporting tests passed.'
