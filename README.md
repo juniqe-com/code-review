@@ -153,10 +153,17 @@ jobs:
 On the first run it creates a `pi-review-stats` labelled issue. Subsequent
 runs update the same issue with the latest numbers:
 
-| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score |
-|-------|-----------|----------------|----------------|-------|
-| `anthropic/claude-sonnet-4-20250514` | 23 | 5 | 28 / 40 | 82% |
-| `openai/gpt-5.4` | 15 | 3 | 18 / 35 | 83% |
+| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
+|-------|-----------|----------------|----------------|-------|-------------------|-------------------|
+| `anthropic/claude-sonnet-4-20250514` | 23 | 5 | 28 / 40 | 82% | 12 | $1.25 |
+| `openai/gpt-5.4` | 15 | 3 | 18 / 35 | 83% | 9 | $0.42 |
+
+The review action posts Pi's reported USD cost as a PR comment after each
+completed review. The grades workflow averages these costs per model;
+interrupted runs and reviews before cost tracking began do not contribute.
+Models with no recorded costs show `—`. The cost is Pi's estimate, not a
+provider invoice. Both the review and grades actions must use a version with
+cost tracking enabled.
 
 ## Inputs
 
@@ -193,7 +200,7 @@ runs update the same issue with the latest numbers:
 │     → writes findings to /tmp/pi-review.json            │
 │  7. Post each finding as an inline PR comment           │
 │     (with 👍/👎 rating prompt + model tag)              │
-│  8. Post overall summary comment                        │
+│  8. Post cost record and overall summary comments       │
 └─────────────────────────────────────────────────────────┘
 
 Grades workflow (separate):
@@ -203,8 +210,8 @@ Grades workflow (separate):
 │  Runs on schedule / manual dispatch                     │
 │                                                         │
 │  1. Scan all PR review comments for pi-review markers   │
-│  2. Read 👍/👎 reaction counts per comment              │
-│  3. Aggregate stats per model                           │
+│  2. Read 👍/👎 reactions and recorded review costs      │
+│  3. Aggregate quality and mean cost per model           │
 │  4. Create or update a pi-review-stats issue            │
 └─────────────────────────────────────────────────────────┘
 ```

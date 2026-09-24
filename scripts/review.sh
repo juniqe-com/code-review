@@ -265,10 +265,11 @@ echo "::endgroup::"
 
 echo "::group::Running Pi"
 
-# Clean any leftover output from a previous run
 rm -f "$OUTPUT_FILE"
+PI_SESSION_DIR=$(mktemp -d)
+trap 'rm -rf "$PI_SESSION_DIR"' EXIT
 
-PI_ARGS=(-p --no-context-files --model "$MODEL")
+PI_ARGS=(-p --no-context-files --model "$MODEL" --session-dir "$PI_SESSION_DIR")
 
 if [ -n "$VARIANT" ]; then
 	PI_ARGS+=(--thinking "$VARIANT")
@@ -326,6 +327,21 @@ fi
 
 if [ "$IS_COMPLETE" != "true" ]; then
 	echo "::warning::Partial review — Pi was interrupted before finishing. Posting findings gathered so far."
+fi
+
+if [ "$IS_COMPLETE" = "true" ] && [ "$PI_EXIT" -eq 0 ]; then
+	SESSION_FILE=$(find "$PI_SESSION_DIR" -type f -name '*.jsonl' -print -quit)
+	if [ -n "$SESSION_FILE" ] && COST=$(bash "$(dirname "${BASH_SOURCE[0]}")/session-cost.sh" "$SESSION_FILE"); then
+		COST_DATA=$(jq -nc --arg model "$MODEL" --argjson usd "$COST" '{model: $model, usd: $usd}')
+		DISPLAY_COST=$(printf '%.4f' "$COST")
+		COST_BODY="Pi review cost: \$${DISPLAY_COST} USD (${MODEL}).
+<!-- pi-review-cost: ${COST_DATA} -->"
+		if ! gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="$COST_BODY" >/dev/null; then
+			echo "::warning::Could not post review cost for ${MODEL}."
+		fi
+	else
+		echo "::warning::No valid Pi session cost available for ${MODEL}."
+	fi
 fi
 
 echo "::endgroup::"
