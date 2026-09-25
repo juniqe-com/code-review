@@ -173,6 +173,22 @@ Models with no recorded costs show `—`. The cost is Pi's estimate, not a
 provider invoice. Both the review and grades actions must use a version with
 cost tracking enabled.
 
+## Agent skill
+
+The `pi-review` skill teaches Claude Code to work through Pi Review feedback on
+a PR: read every comment, react, reply, fix, resolve threads and ask for another
+review until the PR is approved.
+
+Install it:
+
+```bash
+mkdir -p ~/.claude/skills/pi-review
+curl -fsSL https://raw.githubusercontent.com/juniqe-com/code-review/main/skills/pi-review/SKILL.md \
+  -o ~/.claude/skills/pi-review/SKILL.md
+```
+
+Then ask Claude Code to "handle the Pi review on this PR", or type `/pi-review`.
+
 ## Inputs
 
 | Input | Required | Default | Description |
