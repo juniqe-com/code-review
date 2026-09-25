@@ -77,6 +77,7 @@ runs:
         INPUT_MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}
         INPUT_REVIEW_TIMEOUT: ${{ inputs.review_timeout }}
         INPUT_EXTRA_ENV: ${{ inputs.extra_env }}
+        REVIEW_COST_FILE: ${{ runner.temp }}/pi-review-cost.json
         PR_NUMBER: ${{ github.event.pull_request.number }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -90,4 +91,14 @@ runs:
           done <<< "$INPUT_EXTRA_ENV"
         fi
 
+        rm -f "$REVIEW_COST_FILE"
         bash "${{ github.action_path }}/scripts/review.sh"
+
+    - name: Save review cost
+      continue-on-error: true
+      uses: actions/upload-artifact@v4
+      with:
+        name: pi-review-cost
+        path: ${{ runner.temp }}/pi-review-cost.json
+        if-no-files-found: ignore
+        overwrite: true

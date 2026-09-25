@@ -1,5 +1,5 @@
 name: "Pi Review Grades"
-description: "Collects reaction-based grades on Pi review comments and maintains a stats issue."
+description: "Collects reaction-based grades and review cost artifacts, then maintains a stats issue."
 branding:
   icon: "bar-chart-2"
   color: "blue"

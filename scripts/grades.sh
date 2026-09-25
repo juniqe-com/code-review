@@ -46,21 +46,33 @@ TOTAL=$(echo "$ALL_GRADES" | jq 'length')
 echo "Found ${TOTAL} pi-review comments"
 
 PAGE=1
-ALL_COSTS="[]"
+COSTS_FILE=$(mktemp)
+ARCHIVE_FILE=$(mktemp)
+trap 'rm -f "$COSTS_FILE" "$ARCHIVE_FILE"' EXIT
+CUTOFF=$(jq -n 'now - 90 * 86400')
 while :; do
-	BATCH=$(gh api \
-		"repos/${REPO}/issues/comments?per_page=100&page=${PAGE}&sort=created&direction=desc")
-
-	COUNT=$(echo "$BATCH" | jq 'length')
-	PAGE_COSTS=$(echo "$BATCH" | jq '[
-		.[] | (.body // "" | capture("<!-- pi-review-cost: (?<data>[^\\n]+) -->").data | fromjson?) |
-		select(.model | type == "string") | select(.usd | type == "number" and . >= 0)
-	]')
-	ALL_COSTS=$(echo "$ALL_COSTS" "$PAGE_COSTS" | jq -s '.[0] + .[1]')
-
+	BATCH=$(gh api "repos/${REPO}/actions/artifacts?name=pi-review-cost&per_page=100&page=${PAGE}")
+	COUNT=$(echo "$BATCH" | jq '.artifacts | length')
+	IDS=$(echo "$BATCH" | jq -r --argjson cutoff "$CUTOFF" '
+		.artifacts[] | select(.expired == false and (.created_at | fromdateiso8601) >= $cutoff) | .id')
+	for ID in $IDS; do
+		if ! curl -fsSL \
+			-H 'Accept: application/vnd.github+json' \
+			-H "Authorization: Bearer ${GITHUB_TOKEN:?GITHUB_TOKEN is required}" \
+			-o "$ARCHIVE_FILE" \
+			"https://api.github.com/repos/${REPO}/actions/artifacts/${ID}/zip"; then
+			echo "::warning::Could not download review cost artifact ${ID}."
+			continue
+		fi
+		if ! unzip -p "$ARCHIVE_FILE" pi-review-cost.json 2>/dev/null |
+			jq -ce 'select(.model | type == "string") | select(.usd | type == "number" and . >= 0) | {model, usd}' >>"$COSTS_FILE"; then
+			echo "::warning::Invalid review cost artifact ${ID}."
+		fi
+	done
 	[ "$COUNT" -lt 100 ] && break
 	PAGE=$((PAGE + 1))
 done
+ALL_COSTS=$(jq -s '.' "$COSTS_FILE")
 
 echo "Found $(echo "$ALL_COSTS" | jq 'length') reviews with cost data"
 echo "::endgroup::"
@@ -111,8 +123,8 @@ render_rows() {
 		 else "—" end) + " |"'
 }
 
-TABLE_HEADER='| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
-|-------|-----------|----------------|----------------|-------|-------------------|-------------------|'
+TABLE_HEADER='| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost (90d) | Avg cost / review (90d) |
+|-------|-----------|----------------|----------------|-------|-------------------------|-------------------------|'
 TABLE_ROWS=$(echo "$ACTIVE_STATS" | render_rows)
 TOTAL_ALL=$(echo "$ACTIVE_STATS" | jq '[.[].total] | add')
 TOTAL_GRADED=$(echo "$ACTIVE_STATS" | jq '[.[].graded] | add')
@@ -135,7 +147,7 @@ ${TABLE_HEADER}
 ${TABLE_ROWS}
 
 > **Score** = helpful ÷ (helpful + not helpful). Based on ${TOTAL_GRADED} graded out of ${TOTAL_ALL} total active-model review comments.
-> **Avg cost / review** = Pi-reported USD cost ÷ completed review runs with cost data. Earlier runs and interrupted reviews have no cost data.
+> **Avg cost / review (90d)** = Pi-reported USD cost ÷ completed reviews with a cost artifact from the last 90 days. Artifact retention policies may shorten this window; reviews before artifact tracking and interrupted runs have no cost data.
 
 ${ARCHIVED_BODY}
 
