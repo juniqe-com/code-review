@@ -143,6 +143,7 @@ permissions:
   contents: read
   issues: write
   pull-requests: read
+  actions: read
 
 jobs:
   grades:
@@ -161,17 +162,20 @@ The workflow must configure literal `model` or `models` values on the
 `code-review` step; dynamic expressions cannot be resolved.
 The issue contains a table like this:
 
-| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost | Avg cost / review |
-|-------|-----------|----------------|----------------|-------|-------------------|-------------------|
+| Model | 👍 Helpful | 👎 Not Helpful | Graded / Total | Score | Reviews with cost (90d) | Avg cost / review (90d) |
+|-------|-----------|----------------|----------------|-------|-------------------------|-------------------------|
 | `anthropic/claude-sonnet-4-20250514` | 23 | 5 | 28 / 40 | 82% | 12 | $1.25 |
 | `openai/gpt-5.4` | 15 | 3 | 18 / 35 | 83% | 9 | $0.42 |
 
-The review action posts Pi's reported USD cost as a PR comment after each
-completed review. The grades workflow averages these costs per model;
-interrupted runs and reviews before cost tracking began do not contribute.
-Models with no recorded costs show `—`. The cost is Pi's estimate, not a
-provider invoice. Both the review and grades actions must use a version with
-cost tracking enabled.
+After a completed review, the review action uploads Pi's reported USD cost as
+a `pi-review-cost` Actions artifact, not a PR comment. The grades workflow
+averages costs from artifacts created in the last 90 days. Artifacts expire
+according to repository retention settings (90 days by default), so a shorter
+policy shortens the available window. Interrupted runs and reviews before
+artifact tracking began do not contribute; existing cost comments are not
+read. Models with no recorded costs show `—`. The cost is Pi's estimate, not
+a provider invoice. Both actions must use a version with artifact-based cost
+tracking.
 
 ## Agent skill
 
@@ -224,7 +228,7 @@ Then ask Claude Code to "handle the Pi review on this PR", or type `/pi-review`.
 │     → writes findings to /tmp/pi-review.json            │
 │  7. Post each finding as an inline PR comment           │
 │     (with 👍/👎 rating prompt + model tag)              │
-│  8. Post cost record and overall summary comments       │
+│  8. Post summary; upload cost artifact                  │
 └─────────────────────────────────────────────────────────┘
 
 Grades workflow (separate):
@@ -234,7 +238,7 @@ Grades workflow (separate):
 │  Runs on schedule / manual dispatch                     │
 │                                                         │
 │  1. Scan all PR review comments for pi-review markers   │
-│  2. Read 👍/👎 reactions and recorded review costs      │
+│  2. Read reactions and recent cost artifacts            │
 │  3. Read configured models from the review workflow      │
 │  4. Split active and archived model statistics           │
 │  5. Create or update a pi-review-stats issue             │
@@ -304,6 +308,7 @@ The **grades workflow** needs:
 |------------|-------|-----|
 | `pull-requests` | `read` | Read review comment reactions |
 | `issues` | `write` | Create / update the stats issue |
+| `actions` | `read` | Read review cost artifacts |
 | `contents` | `read` | Read the configured model list from the default branch review workflow |
 
 ## License
