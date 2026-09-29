@@ -201,7 +201,7 @@ Then ask Claude Code to "handle the Pi review on this PR", or type `/pi-review`.
 | `models` | no\* | — | Comma-separated list of models — one is picked at random per run. |
 | `thinking` | no | `""` | Optional thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 | `github_token` | no | `${{ github.token }}` | Token for posting comments |
-| `pi_version` | no | `0.84.3` | Pi version to install |
+| `pi_version` | no | `0.87.1` | Pi version to install |
 | `review_prompt` | no | `""` | Extra review instructions appended to the default prompt |
 | `max_diff_size` | no | `100000` | Max diff bytes before truncation |
 | `review_timeout` | no | `900` | Seconds to wait for Pi before stopping. The partial review is still posted, then the action fails. |

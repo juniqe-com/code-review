@@ -25,7 +25,7 @@ inputs:
     description: "Pi version to install. Defaults to a pinned, known-good version."
     required: false
     # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
-    default: "0.84.3"
+    default: "0.87.1"
   review_prompt:
     description: "Custom review prompt to append to the default instructions. Use this to add project-specific review criteria."
     required: false
@@ -55,6 +55,17 @@ runs:
           echo "Installing Pi..."
           # Pi moved from @mariozechner to @earendil-works; the old package is frozen at 0.73.1.
           npm install -g @earendil-works/pi-coding-agent@${{ inputs.pi_version }}
+        fi
+
+    - name: Add model prices Pi lacks
+      shell: bash
+      run: |
+        MODELS_FILE="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/models.json"
+        if [ -e "$MODELS_FILE" ]; then
+          echo "::warning::${MODELS_FILE} exists; not adding the action's model prices."
+        else
+          mkdir -p "$(dirname "$MODELS_FILE")"
+          cp "${{ github.action_path }}/pi/models.json" "$MODELS_FILE"
         fi
 
     - name: Select model
