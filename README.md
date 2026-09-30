@@ -10,7 +10,7 @@ AI-powered code review GitHub Action using [Pi](https://github.com/badlogic/pi-m
 - **Summary comment** — An optional overall summary with a verdict (approve / request changes / comment) is posted on the PR.
 - **Findings outside the diff** — If Pi finds an issue on a line that isn't part of the diff, it's included in the summary table instead of being silently dropped.
 - **Configurable model + thinking** — Use any provider/model supported by Pi and optionally choose a thinking level.
-- **Multi-model A/B testing** — Supply a comma-separated list of models; one is picked per review. Selection is weighted by each model's 👍 / 👎 score from the grades issue, so better-performing models get more volume while unproven ones still get explored.
+- **Multi-model A/B testing** — Supply a comma-separated list of models; one is picked per review. Selection uses helpfulness scores and average review costs from the grades issue, favoring helpful, cheaper models while still exploring unproven ones.
 - **Comment grading** — Each inline comment includes a 👍 / 👎 prompt. A separate grades workflow aggregates reactions into per-model scores and maintains a stats issue in your repo.
 
 ## Quick start
@@ -107,12 +107,22 @@ Combine with the [grades workflow](#comment-grading) to compare model quality.
 
 #### Weighted selection
 
-Once the grades workflow has run at least once, selection is weighted by each
-model's 👍 / 👎 score from the stats issue — models with a higher helpful
-ratio receive more reviews on average. Weights use Bayesian shrinkage
-(α = 2) so noisy small-sample scores are pulled toward 50%, and every model
-keeps a minimum weight of 10 so under-performing or brand-new models still
-get explored. Each run logs the effective per-model share in the action log.
+Once the grades workflow has run at least once, selection uses each model's
+👍 / 👎 score and average review cost from the stats issue. The helpfulness
+weight is `floor(100 × (up + 2) / (up + down + 4))`. Bayesian shrinkage
+(α = 2) pulls noisy small-sample scores toward 50%.
+
+For models with a positive average cost, multiply that weight by
+`cheapest positive average cost / model average cost`, using only the
+configured candidates. Average cost is total Pi-reported USD cost divided by
+completed reviews with cost artifacts from the last 90 days. At equal quality,
+a model costing twice as much gets half the weight, until the minimum applies.
+Models with missing or zero cost data keep their helpfulness weight; old stats
+without cost fields still support helpfulness-only selection.
+
+The final weight is rounded down and floored at 10, so every model still gets
+explored. This is a minimum weight, not a guaranteed percentage of reviews.
+Each run logs the effective per-model weight and share in the action log.
 
 For weighting to work, the review workflow token needs `issues: read` in
 addition to the default permissions. Without it (or before the first grades
