@@ -155,7 +155,7 @@ ${ARCHIVED_BODY}
 
 Each review comment posted by Pi includes a 👍 / 👎 prompt.
 This issue is auto-updated by the **Pi Review Grades** workflow.
-The review action reads the active-model data block below to weight model selection by score.
+The review action reads the active-model data block below to weight model selection by helpfulness and average review cost.
 
 _Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')_
 
